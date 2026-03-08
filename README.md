@@ -21,7 +21,7 @@ A next-generation, AI-powered platform designed to help university students shar
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/danagazit02-wq/smart-student-exchange.git](https://github.com/danagazit02-wq/smart-student-exchange.git)
+   git clone https://github.com/DanaGazit/smart-student-exchange.git
    cd smart-student-exchange
    ```
 
