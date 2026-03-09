@@ -1,6 +1,10 @@
 import streamlit as st
 import requests
 import urllib.parse
+import os
+
+# --- Configuration & Environment Variables ---
+BACKEND_URL = os.getenv("BACKEND_API_URL", "http://backend:8000")
 
 # --- Application Configuration ---
 st.set_page_config(page_title="Smart Student Exchange", page_icon="🎓", layout="centered")
@@ -68,7 +72,7 @@ if st.session_state.page == 'home':
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown('<div class="select-title"> באיזה מוסד אקדמי אתם לומדים? 🏫</div>', unsafe_allow_html=True)
+    st.markdown('<div class="select-title">🏫 באיזה מוסד אקדמי אתם לומדים?</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -77,7 +81,7 @@ if st.session_state.page == 'home':
         selected_inst = st.selectbox("בחר מוסד", institutions, index=default_idx, label_visibility="collapsed")
         
         st.write("")
-        if st.button("כניסה לספרייה 🚀", type="primary", use_container_width=True):
+        if st.button("🚀 כניסה לספרייה", type="primary", use_container_width=True):
             go_to_hub(selected_inst)
             st.rerun()
 
@@ -88,7 +92,7 @@ if st.session_state.page == 'home':
             יש לכם סיכומים מודפסים שסתם שוכבים בבית? עבדתם שעות על סיכום או דף נוסחאות מושקע? <br>
             <span dir="ltr" class="highlight-pay">PAY IT FORWARD!</span><br><br>
             במקום לזרוק אותם לפח בתום הסמסטר, המערכת שלנו מאפשרת לכם להעביר, להשאיל או לשתף חומרי לימוד פיזיים ודיגיטליים בקלות עם סטודנטים שצריכים אותם עכשיו.<br>
-            החלק הכי טוב? אתם אפילו לא צריכים להקליד כלום. פשוט העלו את המסמך, ותנו לבינה המלאכותית (AI) שלנו לעשות את כל עבודת הקיטלוג השחורה עבורכם.
+            החלק הכי טוב? אתם אפילו לא צריכים להקליד כלום. פשוט צלמו את המסמך, ותנו לבינה המלאכותית (AI) שלנו לעשות את כל עבודת הקיטלוג השחורה עבורכם. תעבירו את זה הלאה! 🚀
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -99,7 +103,7 @@ if st.session_state.page == 'home':
 elif st.session_state.page == 'hub':
     header_col1, header_col2 = st.columns([4, 1])
     with header_col1:
-        st.header(f"המרכז של {st.session_state.selected_institution} 🎓")
+        st.header(f"🎓 המרכז של {st.session_state.selected_institution}")
     with header_col2:
         if st.button("🔙 שינוי מוסד"):
             go_to_home()
@@ -111,7 +115,7 @@ elif st.session_state.page == 'hub':
     
     # --- Tab 1: AI-Powered Upload ---
     with tab_upload:
-        st.subheader("העלו תמונה או קובץ, ותנו ל-AI לנתח אותו בשבילכם ⚡")
+        st.subheader("העלו תמונה או קובץ, ותנו ל-AI לנתח אותו בשבילכם⚡")
         uploaded_file = st.file_uploader("בחר קובץ (תמונה או PDF)", type=["jpg", "png", "jpeg", "pdf"])
 
         if uploaded_file is not None:
@@ -124,7 +128,7 @@ elif st.session_state.page == 'hub':
                 with st.spinner("ה-AI קורא את המסמך..."):
                     files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
                     try:
-                        response = requests.post("http://backend:8000/analyze-material", files=files)
+                        response = requests.post(f"{BACKEND_URL}/analyze-material", files=files)
                         if response.status_code == 200:
                             result = response.json()
                             if "data" in result:
@@ -202,7 +206,7 @@ elif st.session_state.page == 'hub':
                         }    
                         
                         try:
-                            save_response = requests.post("http://backend:8000/materials", json=payload)
+                            save_response = requests.post(f"{BACKEND_URL}/materials", json=payload)
                             if save_response.status_code == 200:
                                 st.success("החומר נשמר בהצלחה! תוכל למצוא אותו בספרייה.")
                                 st.session_state.ai_data = None
@@ -214,7 +218,7 @@ elif st.session_state.page == 'hub':
     # --- Tab 2: Material Library & Search ---
     with tab_library:
         try:
-            response = requests.get("http://backend:8000/materials")
+            response = requests.get(f"{BACKEND_URL}/materials")
             
             if response.status_code == 200:
                 all_materials = response.json()
@@ -266,14 +270,14 @@ elif st.session_state.page == 'hub':
                                     body = f"היי {mat.get('uploader_name', '')},\nראיתי שהעלית את החומר '{mat['topic']}' בקורס {mat['course_name']}.\nאשמח לתאם איתך מתי אפשר לאסוף אותו!\n\nתודה רבה,"
                                     safe_subject = urllib.parse.quote(subject)
                                     safe_body = urllib.parse.quote(body)
-                                    gmail_link = f"[https://mail.google.com/mail/?view=cm&fs=1&to=](https://mail.google.com/mail/?view=cm&fs=1&to=){mat['contact_email']}&su={safe_subject}&body={safe_body}"
+                                    gmail_link = f"https://mail.google.com/mail/?view=cm&fs=1&to={mat['contact_email']}&su={safe_subject}&body={safe_body}"
                                     st.link_button("✉️ תיאום מסירה (Gmail)", gmail_link, use_container_width=True)
                                 elif not is_physical:
                                     st.button("✉️ פיזי לא זמין", disabled=True, key=f"no_mail_{mat.get('id', mat['topic'])}", use_container_width=True)
                             
                             with action_col2:
                                 if mat.get('file_path'):
-                                    file_url = f"http://backend:8000{mat['file_path']}"
+                                    file_url = f"{BACKEND_URL}{mat['file_path']}"
                                     try:
                                         res = requests.get(file_url)
                                         if res.status_code == 200:
@@ -288,4 +292,4 @@ elif st.session_state.page == 'hub':
                                         pass
                                         
         except requests.exceptions.ConnectionError:
-            st.warning("השרת כבוי, לא ניתן להציג את הספרייה.")
+            st.warning("השרת מכובה, לא ניתן להציג את הספרייה.")
