@@ -1,57 +1,42 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 import json
 import uuid
-import sqlite3
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+import base64
+import jwt
+from io import BytesIO
+from PIL import Image
+import database
+import auth
+import ai_service
+import logging
 
+# הגדרת מערכת הלוגים של השרת
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 # Initialize environment variables and AI client
 load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=API_KEY) if API_KEY else None
 
 app = FastAPI()
-
+database.init_db()
 # Configure local storage for uploaded files
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/downloads", StaticFiles(directory=UPLOAD_DIR), name="downloads")
 
-# Database configuration
-DB_FILE = "materials.db"
+# הגדרת סכמת האבטחה לקבלת הטוקן
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-def init_db():
-    """Initializes the SQLite database and creates the materials table if it doesn't exist."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS materials (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            institution TEXT,
-            course_name TEXT,
-            topic TEXT,
-            material_type TEXT,
-            uploader_name TEXT,
-            contact_email TEXT,
-            availability TEXT,
-            year TEXT,
-            semester TEXT,
-            lecturer TEXT,
-            material_format TEXT,
-            file_path TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# --- Pydantic Models ---
 
-init_db()
-
-# Pydantic model for data validation
 class StudyMaterial(BaseModel):
     institution: str
     course_name: str
@@ -65,6 +50,60 @@ class StudyMaterial(BaseModel):
     lecturer: Optional[str] = None
     material_format: Optional[str] = None
     file_path: Optional[str] = None
+    user_id: Optional[int] = None # שדה חדש לקישור למשתמש
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+# --- Authentication Endpoints ---
+
+@app.post("/register")
+def register_user(user: UserCreate):
+    """נתיב ליצירת משתמש חדש במערכת"""
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # בדיקה אם המייל כבר קיים
+        cursor.execute("SELECT * FROM users WHERE email = ?", (user.email,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Email already registered")
+            
+        # הצפנת סיסמה ושמירה
+        hashed_pw = auth.get_password_hash(user.password)
+        cursor.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (user.email, hashed_pw))
+        conn.commit()
+        return {"message": "User registered successfully"}
+    finally:
+        conn.close()
+
+
+@app.post("/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM users WHERE email = ?", (form_data.username,))
+    user = cursor.fetchone()
+    conn.close()
+
+    if not user:
+        # הודעה ספציפית שהמשתמש לא נמצא
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not auth.verify_password(form_data.password, user["password_hash"]):
+        # הודעה ספציפית שהסיסמה שגויה
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    access_token = auth.create_access_token(data={"sub": user["email"]})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# --- Materials Endpoints ---
 
 @app.get("/")
 def read_root():
@@ -73,8 +112,7 @@ def read_root():
 @app.get("/materials")
 def get_all_materials():
     """Retrieves all study materials from the database."""
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM materials")
     rows = cursor.fetchall()
@@ -82,76 +120,171 @@ def get_all_materials():
     return [dict(row) for row in rows]
 
 @app.post("/materials")
-def save_material(material: StudyMaterial):
+def save_material(material: StudyMaterial, token: str = Depends(oauth2_scheme)):
     """Saves a new study material record to the database."""
-    conn = sqlite3.connect(DB_FILE)
+    # --- שלב 1: אימות ופענוח הטוקן ונורמליזציה של המידע ---
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        raw_email = payload.get("sub")
+        
+        if raw_email is None:
+            raise HTTPException(status_code=401, detail="Invalid token - No user identified")
+            
+        # נורמליזציה: מורידים רווחים שקופים מצדדי המחרוזת והופכים לאותיות קטנות
+        clean_user_email = str(raw_email).strip().lower()
+        
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # --- שלב 2: שמירת החומר עם הזיהוי המאומת והנקי ---
+    conn = database.get_db_connection()
     cursor = conn.cursor()
+    
     cursor.execute('''
         INSERT INTO materials (
             institution, course_name, topic, material_type, uploader_name,
-            contact_email, availability, year, semester, lecturer, material_format, file_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            contact_email, availability, year, semester, lecturer, material_format, file_path, user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         material.institution, material.course_name, material.topic, material.material_type,
         material.uploader_name, material.contact_email, material.availability,
-        material.year, material.semester, material.lecturer, material.material_format, material.file_path
+        material.year, material.semester, material.lecturer, material.material_format, 
+        material.file_path, 
+        clean_user_email  # הכנסת המייל המנורמל
     ))
+    
     conn.commit()
     conn.close()
     return {"message": "Material saved successfully."}
 
 @app.post("/analyze-material")
 async def analyze_material(file: UploadFile = File(...)):
-    """
-    Receives an uploaded file, saves it locally, and uses Google's Gemini AI 
-    to extract structural metadata (course name, topic, format, etc.).
-    """
     try:
-        if not client:
-            return {"error": "AI API Key is missing or invalid configuration."}
-
-        # Read and save the file securely with a UUID
-        image_bytes = await file.read()
-        file_ext = file.filename.split('.')[-1] if file.filename else 'jpg'
+        file_bytes = await file.read()
+        file_ext = file.filename.split('.')[-1].lower() if file.filename else 'jpg'
         unique_filename = f"{uuid.uuid4()}.{file_ext}"
         save_path = os.path.join(UPLOAD_DIR, unique_filename)
         
         with open(save_path, "wb") as f:
-            f.write(image_bytes)
+            f.write(file_bytes)
             
         download_url = f"/downloads/{unique_filename}"
         
-        # Construct the prompt for the AI model
-        prompt = """
-        Analyze this document or image of a student's study material.
-        Return ONLY a valid JSON object with the exact following keys and string values:
-        - course_name: the precise name of the academic course in Hebrew. Read the text carefully.
-        - topic: the specific topic of this page, written in Hebrew.
-        - material_type: classify exactly as 'סיכום', 'מבחן', 'שיעורי בית', or 'דף נוסחאות'.
-        - year: the academic year written (e.g., '2023', '2024', 'תשפ"ד'). If not found, write 'לא צוין'.
-        - semester: the semester written (e.g., 'א', 'ב', 'קיץ'). If not found, write 'לא צוין'.
-        - lecturer: the name of the lecturer if written. If not found, leave empty string "".
-        - material_format: classify as 'מודפס' (typed) or 'בכתב יד' (handwritten). If unsure, leave empty "".
-        Do not include any markdown formatting like ```json.
-        """
-        
-        safe_mime_type = file.content_type or "image/jpeg"
-        
-        # Invoke Gemini API
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[
-                prompt,
-                types.Part.from_bytes(data=image_bytes, mime_type=safe_mime_type)
-            ]
-        )
-        
-        # Parse AI response
-        safe_text = response.text or "{}"
-        ai_result = json.loads(safe_text.strip())
+        ai_result = ai_service.analyze_document(file_bytes, file_ext)
         ai_result["file_path"] = download_url
         
         return {"message": "Analysis successful", "data": ai_result}
         
+    except ValueError as ve:
+        return {"error": str(ve)}
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"Analyze API failed: {str(e)}")
+        return {"error": f"שגיאה בעיבוד הקובץ: {str(e)}"}    
+@app.delete("/materials/{material_id}")
+def delete_material(material_id: int, token: str = Depends(oauth2_scheme)):
+    # 1. אימות טוקן
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        clean_token_email = str(payload.get("sub")).strip().lower()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 2. בדיקת בעלות
+        cursor.execute("SELECT user_id FROM materials WHERE id = ?", (material_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Material not found")
+            
+        if str(row["user_id"]).strip().lower() != clean_token_email:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        # 3. מחיקה בפועל
+        cursor.execute("DELETE FROM materials WHERE id = ?", (material_id,))
+        conn.commit()
+        return {"message": "Material deleted successfully"}
+        
+    except HTTPException:
+        raise # מעביר הלאה שגיאות 403 ו-404 בצורה תקינה
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"DB Error: {e}")
+    finally:
+        
+        conn.close()
+
+
+class UpdateMaterial(BaseModel):
+    institution: str
+    course_name: str
+    topic: str
+    material_type: str
+    availability: str
+    year: str
+    semester: str
+    lecturer: str
+    material_format: str
+
+@app.put("/materials/{material_id}")
+def update_material(material_id: int, updated_data: UpdateMaterial, token: str = Depends(oauth2_scheme)):
+    # אימות טוקן ונורמליזציה (כמו שעשינו)
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        clean_token_email = str(payload.get("sub")).strip().lower()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    
+    # בדיקת בעלות
+    cursor.execute("SELECT user_id FROM materials WHERE id = ?", (material_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Material not found")
+        
+    if str(row["user_id"]).strip().lower() != clean_token_email:
+        conn.close()
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # --- התיקון הקריטי: וודאי שכל ה-? תואמים למספר השדות ---
+    try:
+        cursor.execute('''
+            UPDATE materials 
+            SET institution = ?, 
+                course_name = ?, 
+                topic = ?, 
+                material_type = ?,
+                availability = ?, 
+                year = ?, 
+                semester = ?, 
+                lecturer = ?, 
+                material_format = ?
+            WHERE id = ?
+        ''', (
+            updated_data.institution, 
+            updated_data.course_name, 
+            updated_data.topic, 
+            updated_data.material_type,
+            updated_data.availability, 
+            updated_data.year, 
+            updated_data.semester, 
+            updated_data.lecturer, 
+            updated_data.material_format, 
+            material_id
+        ))
+        conn.commit()
+        logger.info(f"Material {material_id} was successfully updated by {clean_token_email}")
+    except Exception as e:
+        logger.error(f"Database update failed for material {material_id}: {e}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+    finally:
+        conn.close()
+    
+    return {"message": "Updated"}
