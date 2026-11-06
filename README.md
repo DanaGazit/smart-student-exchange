@@ -16,11 +16,35 @@ A fully containerized full-stack platform designed to facilitate the sharing and
 * **Frontend:** Streamlit, Requests
 * **Infrastructure:** Docker, Docker Compose
 
+## 🗂️ Project Structure
+
+The backend is split into layers, each with a single responsibility:
+
+```
+main.py                 # App setup: creates FastAPI, connects the routers
+routers/                # HTTP layer: endpoints, request in → response out
+  auth_router.py        #   /register, /login
+  materials_router.py   #   /materials, /analyze-material
+services/               # Business logic
+  auth_service.py       #   registration and login
+  materials_service.py  #   ownership checks, file upload handling
+  ai_service.py         #   PDF/image processing and the Groq AI call
+repositories/           # Data access: SQL queries only
+  users_repository.py
+  materials_repository.py
+dependencies.py         # get_current_user: JWT validation for protected endpoints
+schemas.py              # Pydantic request models
+auth.py                 # Password hashing (bcrypt) and JWT creation
+database.py             # SQLite connection and table creation
+frontend.py             # Streamlit UI
+test_api.py             # Integration tests (run against a running backend)
+```
+
 ## ⚙️ How to Run Locally
 
 1. Clone this repository.
 
-2. Create a `.env` file in the root directory (use `.env.example` as a template) and insert your Groq API key.
+2. Create a `.env` file in the root directory (use `.env.example` as a template) and insert your Groq API key and a `SECRET_KEY`.
 
 3. Start the application using Docker:
    ```bash
