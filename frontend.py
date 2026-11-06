@@ -346,9 +346,27 @@ elif st.session_state.page == 'hub':
                                     st.write(f"**זמינות:** {mat.get('availability', 'לא צוין')}")
                                     
                                     if mat.get('file_path'):
-                                        public_backend_url = BACKEND_URL.replace("backend", "localhost")
-                                        file_url = f"{public_backend_url}{mat['file_path']}"
-                                        st.link_button("📥 צפה בסריקה", file_url, use_container_width=True)
+                                        view_col, download_col = st.columns(2)
+                                        with view_col:
+                                            public_backend_url = BACKEND_URL.replace("backend", "localhost")
+                                            file_url = f"{public_backend_url}{mat['file_path']}"
+                                            st.link_button("📥 צפה בסריקה", file_url, use_container_width=True)
+                                        with download_col:
+                                            # הקובץ נשלף דרך השרת (כתובת פנימית), כך שההורדה עובדת גם כשהדפדפן לא מגיע ישירות ל-backend
+                                            try:
+                                                file_res = requests.get(f"{BACKEND_URL}{mat['file_path']}", timeout=10)
+                                                if file_res.status_code == 200:
+                                                    st.download_button(
+                                                        label="⬇️ הורד סריקה",
+                                                        data=file_res.content,
+                                                        file_name=mat['file_path'].split('/')[-1],
+                                                        key=f"dl_{mat['id']}",
+                                                        use_container_width=True
+                                                    )
+                                                else:
+                                                    st.caption("הקובץ אינו זמין להורדה")
+                                            except requests.exceptions.RequestException:
+                                                st.caption("הקובץ אינו זמין להורדה")
 
                                     # --- לוגיקת כלי ניהול ---
                                     current_user_email = str(st.session_state.get("user_email", "")).strip().lower()
