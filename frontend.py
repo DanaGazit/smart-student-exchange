@@ -338,9 +338,22 @@ elif st.session_state.page == 'hub':
                     if not relevant_materials:
                         st.info("עדיין אין חומרים עבור המוסד הזה.")
                     else:
-                        search_query = st.text_input("🔍 חיפוש קורס או נושא:", placeholder="לדוגמה: מבנה נתונים...")
+                        search_col, type_col = st.columns([2, 1])
+                        with search_col:
+                            search_query = st.text_input("🔍 חיפוש קורס או נושא:", placeholder="לדוגמה: מבנה נתונים...")
+                        with type_col:
+                            available_types = sorted({mat.get("material_type") for mat in relevant_materials if mat.get("material_type")})
+                            selected_types = st.multiselect("סוג חומר:", options=available_types, default=available_types)
+
+                        def matches_filters(mat):
+                            search_match = not search_query or search_query.lower() in mat.get("course_name", "").lower() or search_query.lower() in mat.get("topic", "").lower()
+                            return search_match and mat.get("material_type") in selected_types
+
+                        shown_count = sum(1 for mat in relevant_materials if matches_filters(mat))
+                        st.write(f"מציג **{shown_count}** מתוך **{len(relevant_materials)}** חומרים במוסד:")
+
                         for mat in relevant_materials:
-                            if not search_query or search_query.lower() in mat.get("course_name", "").lower() or search_query.lower() in mat.get("topic", "").lower():
+                            if matches_filters(mat):
                                 with st.expander(f"📖 {mat['course_name']} - {mat['topic']} ({mat['material_type']})"):
                                     st.write(f"**הועלה על ידי:** {mat.get('uploader_name', 'אנונימי')}")
                                     st.write(f"**זמינות:** {mat.get('availability', 'לא צוין')}")
