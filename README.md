@@ -4,7 +4,7 @@ A fully containerized full-stack platform designed to facilitate the sharing and
 
 ## 🚀 Key Features
 
-* **AI-Powered OCR & Metadata Extraction:** Upload a picture or PDF of a study document, and the integrated Groq AI (Llama 4 Vision) automatically extracts relevant metadata (Course Name, Topic, Semester, Document Type).
+* **AI-Powered OCR & Metadata Extraction:** Upload a picture or PDF of a study document, and the integrated Groq AI (Qwen 3.8 vision model, configurable via `GROQ_MODEL`) automatically extracts relevant metadata (Course Name, Topic, Semester, Document Type).
 * **Decoupled Architecture:** Built with a stateless, RESTful FastAPI backend and a clean Streamlit frontend UI.
 * **Robust Security:** Implements JWT-based authentication with Owner-based Access Control. Users can only edit or delete materials they personally uploaded.
 * **Dynamic Availability Tracking:** Real-time tracking of material status (e.g., physical delivery, digital-only, or borrowed with dynamic return dates).
