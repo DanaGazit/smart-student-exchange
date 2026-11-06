@@ -350,6 +350,28 @@ elif st.session_state.page == 'hub':
                                         file_url = f"{public_backend_url}{mat['file_path']}"
                                         st.link_button("📥 צפה בסריקה", file_url, use_container_width=True)
 
+                                    # --- תיאום מסירה או השאלה ב-Gmail (רק לחומר פיזי) ---
+                                    availability = mat.get('availability') or ''
+                                    is_borrowed = availability.startswith("בהשאלה עד")
+                                    is_physical = availability == "זמין למסירה פיזית" or is_borrowed
+                                    if mat.get('contact_email') and is_physical:
+                                        subject = f"בקשה בנוגע לחומר: {mat['course_name']} - {mat['topic']}"
+                                        if is_borrowed:
+                                            request_line = f"ראיתי שהחומר מושאל כרגע ({availability}). אשמח להשאיל אותו אחרי שיחזור!"
+                                        else:
+                                            request_line = "אשמח לתאם איתך מתי אפשר לאסוף אותו!"
+                                        body = f"היי {mat.get('uploader_name', '')},\nראיתי שהעלית את החומר '{mat['topic']}' בקורס {mat['course_name']}.\n{request_line}\n\nתודה רבה,"
+                                        # מקודדים את הפרמטרים כדי שעברית, רווחים ושורות חדשות יעברו תקין בקישור
+                                        gmail_link = (
+                                            "https://mail.google.com/mail/?view=cm&fs=1"
+                                            f"&to={urllib.parse.quote(mat['contact_email'], safe='@')}"
+                                            f"&su={urllib.parse.quote(subject)}"
+                                            f"&body={urllib.parse.quote(body)}"
+                                        )
+                                        st.link_button("✉️ תיאום מסירה (Gmail)", gmail_link, use_container_width=True)
+                                    elif not is_physical:
+                                        st.button("✉️ פיזי לא זמין", disabled=True, key=f"no_mail_{mat['id']}", use_container_width=True)
+
                                     # --- לוגיקת כלי ניהול ---
                                     current_user_email = str(st.session_state.get("user_email", "")).strip().lower()
                                     material_owner_email = str(mat.get('user_id', '')).strip().lower()
