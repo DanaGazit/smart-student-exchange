@@ -342,9 +342,17 @@ elif st.session_state.page == 'hub':
                         for mat in relevant_materials:
                             if not search_query or search_query.lower() in mat.get("course_name", "").lower() or search_query.lower() in mat.get("topic", "").lower():
                                 with st.expander(f"📖 {mat['course_name']} - {mat['topic']} ({mat['material_type']})"):
-                                    st.write(f"**הועלה על ידי:** {mat.get('uploader_name', 'אנונימי')}")
-                                    st.write(f"**זמינות:** {mat.get('availability', 'לא צוין')}")
-                                    
+                                    info_col1, info_col2 = st.columns(2)
+                                    with info_col1:
+                                        st.write(f"**שנה וסמסטר:** {mat.get('year') or 'לא צוין'} | {mat.get('semester') or 'לא צוין'}")
+                                        if mat.get('lecturer'):
+                                            st.write(f"**מרצה:** {mat['lecturer']}")
+                                    with info_col2:
+                                        if mat.get('material_format'):
+                                            st.write(f"**פורמט:** {mat['material_format']}")
+                                        st.write(f"**זמינות:** {mat.get('availability', 'לא צוין')}")
+                                        st.write(f"**הועלה על ידי:** {mat.get('uploader_name', 'אנונימי')}")
+
                                     if mat.get('file_path'):
                                         public_backend_url = BACKEND_URL.replace("backend", "localhost")
                                         file_url = f"{public_backend_url}{mat['file_path']}"
