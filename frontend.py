@@ -338,17 +338,78 @@ elif st.session_state.page == 'hub':
                     if not relevant_materials:
                         st.info("עדיין אין חומרים עבור המוסד הזה.")
                     else:
-                        search_query = st.text_input("🔍 חיפוש קורס או נושא:", placeholder="לדוגמה: מבנה נתונים...")
+                        search_col, type_col = st.columns([2, 1])
+                        with search_col:
+                            search_query = st.text_input("🔍 חיפוש קורס או נושא:", placeholder="לדוגמה: מבנה נתונים...")
+                        with type_col:
+                            available_types = sorted({mat.get("material_type") for mat in relevant_materials if mat.get("material_type")})
+                            selected_types = st.multiselect("סוג חומר:", options=available_types, default=available_types)
+
+                        def matches_filters(mat):
+                            search_match = not search_query or search_query.lower() in mat.get("course_name", "").lower() or search_query.lower() in mat.get("topic", "").lower()
+                            return search_match and mat.get("material_type") in selected_types
+
+                        shown_count = sum(1 for mat in relevant_materials if matches_filters(mat))
+                        st.write(f"מציג **{shown_count}** מתוך **{len(relevant_materials)}** חומרים במוסד:")
+
                         for mat in relevant_materials:
-                            if not search_query or search_query.lower() in mat.get("course_name", "").lower() or search_query.lower() in mat.get("topic", "").lower():
+                            if matches_filters(mat):
                                 with st.expander(f"📖 {mat['course_name']} - {mat['topic']} ({mat['material_type']})"):
-                                    st.write(f"**הועלה על ידי:** {mat.get('uploader_name', 'אנונימי')}")
-                                    st.write(f"**זמינות:** {mat.get('availability', 'לא צוין')}")
-                                    
+                                    info_col1, info_col2 = st.columns(2)
+                                    with info_col1:
+                                        st.write(f"**שנה וסמסטר:** {mat.get('year') or 'לא צוין'} | {mat.get('semester') or 'לא צוין'}")
+                                        if mat.get('lecturer'):
+                                            st.write(f"**מרצה:** {mat['lecturer']}")
+                                    with info_col2:
+                                        if mat.get('material_format'):
+                                            st.write(f"**פורמט:** {mat['material_format']}")
+                                        st.write(f"**זמינות:** {mat.get('availability', 'לא צוין')}")
+                                        st.write(f"**הועלה על ידי:** {mat.get('uploader_name', 'אנונימי')}")
+
                                     if mat.get('file_path'):
-                                        public_backend_url = BACKEND_URL.replace("backend", "localhost")
-                                        file_url = f"{public_backend_url}{mat['file_path']}"
-                                        st.link_button("📥 צפה בסריקה", file_url, use_container_width=True)
+                                        view_col, download_col = st.columns(2)
+                                        with view_col:
+                                            public_backend_url = BACKEND_URL.replace("backend", "localhost")
+                                            file_url = f"{public_backend_url}{mat['file_path']}"
+                                            st.link_button("📥 צפה בסריקה", file_url, use_container_width=True)
+                                        with download_col:
+                                            # הקובץ נשלף דרך השרת (כתובת פנימית), כך שההורדה עובדת גם כשהדפדפן לא מגיע ישירות ל-backend
+                                            try:
+                                                file_res = requests.get(f"{BACKEND_URL}{mat['file_path']}", timeout=10)
+                                                if file_res.status_code == 200:
+                                                    st.download_button(
+                                                        label="⬇️ הורד סריקה",
+                                                        data=file_res.content,
+                                                        file_name=mat['file_path'].split('/')[-1],
+                                                        key=f"dl_{mat['id']}",
+                                                        use_container_width=True
+                                                    )
+                                                else:
+                                                    st.caption("הקובץ אינו זמין להורדה")
+                                            except requests.exceptions.RequestException:
+                                                st.caption("הקובץ אינו זמין להורדה")
+
+                                    # --- תיאום מסירה או השאלה ב-Gmail (רק לחומר פיזי) ---
+                                    availability = mat.get('availability') or ''
+                                    is_borrowed = availability.startswith("בהשאלה עד")
+                                    is_physical = availability == "זמין למסירה פיזית" or is_borrowed
+                                    if mat.get('contact_email') and is_physical:
+                                        subject = f"בקשה בנוגע לחומר: {mat['course_name']} - {mat['topic']}"
+                                        if is_borrowed:
+                                            request_line = f"ראיתי שהחומר מושאל כרגע ({availability}). אשמח להשאיל אותו אחרי שיחזור!"
+                                        else:
+                                            request_line = "אשמח לתאם איתך מתי אפשר לאסוף אותו!"
+                                        body = f"היי {mat.get('uploader_name', '')},\nראיתי שהעלית את החומר '{mat['topic']}' בקורס {mat['course_name']}.\n{request_line}\n\nתודה רבה,"
+                                        # מקודדים את הפרמטרים כדי שעברית, רווחים ושורות חדשות יעברו תקין בקישור
+                                        gmail_link = (
+                                            "https://mail.google.com/mail/?view=cm&fs=1"
+                                            f"&to={urllib.parse.quote(mat['contact_email'], safe='@')}"
+                                            f"&su={urllib.parse.quote(subject)}"
+                                            f"&body={urllib.parse.quote(body)}"
+                                        )
+                                        st.link_button("✉️ תיאום מסירה (Gmail)", gmail_link, use_container_width=True)
+                                    elif not is_physical:
+                                        st.button("✉️ פיזי לא זמין", disabled=True, key=f"no_mail_{mat['id']}", use_container_width=True)
 
                                     # --- לוגיקת כלי ניהול ---
                                     current_user_email = str(st.session_state.get("user_email", "")).strip().lower()

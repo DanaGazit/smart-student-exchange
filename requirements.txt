@@ -9,4 +9,4 @@ Pillow
 streamlit
 requests
 passlib
-bcrypt
+bcrypt==4.0.1

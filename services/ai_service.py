@@ -6,6 +6,9 @@ from PIL import Image
 import fitz  # PyMuPDF
 from groq import Groq
 
+# מודל ה-AI (חייב לתמוך בתמונות). אפשר להחליף דרך .env בלי לשנות קוד, למשל כש-Groq מוציאה מודל משימוש
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+
 def analyze_document(file_bytes: bytes, file_ext: str) -> dict:
     """
     מקבלת קובץ (תמונה או PDF), ממירה אותו לפורמט הנדרש, 
@@ -53,7 +56,7 @@ def analyze_document(file_bytes: bytes, file_ext: str) -> dict:
     
     try:
         response = groq_client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct", 
+            model=GROQ_MODEL,
             messages=[
                 {
                     "role": "user",
