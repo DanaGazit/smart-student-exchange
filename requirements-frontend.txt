@@ -1,3 +1,3 @@
-# Frontend (Streamlit) dependencies
-streamlit
-requests
+# Frontend (Streamlit) dependencies (pinned to the versions tested in Docker)
+streamlit==1.67.0
+requests==2.34.2
