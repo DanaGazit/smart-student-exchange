@@ -1,4 +1,4 @@
-import database
+from app.core import database
 
 # שכבת הגישה לנתונים של משתמשים: רק SQL, בלי לוגיקה
 

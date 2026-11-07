@@ -1,0 +1,3 @@
+# Frontend (Streamlit) dependencies
+streamlit
+requests

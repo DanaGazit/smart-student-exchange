@@ -3,14 +3,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 2. מתקינים את כל הספריות
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-frontend.txt .
+RUN pip install --no-cache-dir -r requirements-frontend.txt
 
 # 3. מעתיקים את הקוד
-COPY . .
+COPY frontend/ ./frontend/
 
 # 4. פותחים את הפורט של Streamlit (8501)
 EXPOSE 8501
 
 # 5. הפקודה שמריצה את ממשק המשתמש (בדיוק כמו שעשית בטרמינל!)
-CMD ["streamlit", "run", "frontend.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableXsrfProtection=false", "--server.enableCORS=false"]
+CMD ["streamlit", "run", "frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableXsrfProtection=false", "--server.enableCORS=false"]

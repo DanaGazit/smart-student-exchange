@@ -8,11 +8,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4. מעתיקים את כל שאר הקוד שלנו (main.py וכו') לתוך הקונטיינר
-COPY . .
+# 4. מעתיקים את כל שאר הקוד שלנו (תיקיית app) לתוך הקונטיינר
+COPY app/ ./app/
 
 # 5. פותחים את הדלת (פורט 8000) כדי שהעולם יוכל לדבר עם השרת
 EXPOSE 8000
 
 # 6. הפקודה שתרוץ אוטומטית כשהקונטיינר נדלק
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

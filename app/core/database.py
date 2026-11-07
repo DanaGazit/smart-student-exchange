@@ -1,6 +1,5 @@
 import sqlite3
-
-DB_FILE = "materials.db"
+from app.core.config import DB_FILE
 
 def get_db_connection():
     # יצירת חיבור למסד הנתונים

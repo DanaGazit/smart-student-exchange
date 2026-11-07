@@ -1,5 +1,5 @@
-import database
-from schemas import StudyMaterial, UpdateMaterial
+from app.core import database
+from app.schemas import StudyMaterial, UpdateMaterial
 
 # שכבת הגישה לנתונים של חומרי לימוד: רק SQL, בלי לוגיקה ובלי בדיקות הרשאה
 

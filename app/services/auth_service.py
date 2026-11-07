@@ -1,6 +1,6 @@
 from fastapi import HTTPException
-import auth
-from repositories import users_repository
+from app.core import security
+from app.repositories import users_repository
 
 # הלוגיקה של הרשמה והתחברות
 
@@ -10,7 +10,7 @@ def register_user(email: str, password: str) -> None:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # שומרים רק את ה-hash, אף פעם לא את הסיסמה עצמה
-    users_repository.create_user(email, auth.get_password_hash(password))
+    users_repository.create_user(email, security.get_password_hash(password))
 
 
 def login_user(email: str, password: str) -> str:
@@ -20,7 +20,7 @@ def login_user(email: str, password: str) -> str:
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not auth.verify_password(password, user["password_hash"]):
+    if not security.verify_password(password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    return auth.create_access_token(data={"sub": user["email"]})
+    return security.create_access_token(data={"sub": user["email"]})

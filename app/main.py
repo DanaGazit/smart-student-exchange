@@ -1,19 +1,16 @@
 import os
 import logging
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-import database
-from routers import auth_router, materials_router
-from services.materials_service import UPLOAD_DIR
+from app.core import database
+from app.core.config import UPLOAD_DIR
+from app.api.routers import auth_router, materials_router
 
 # הגדרת מערכת הלוגים של השרת
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-# Initialize environment variables
-load_dotenv()
 
 app = FastAPI()
 database.init_db()
