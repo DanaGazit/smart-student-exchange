@@ -1,24 +1,22 @@
-import os
 import json
 import base64
 from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
 from groq import Groq
+from app.core.config import GROQ_API_KEY, GROQ_MODEL
 
 # מודל ה-AI (חייב לתמוך בתמונות). אפשר להחליף דרך .env בלי לשנות קוד, למשל כש-Groq מוציאה מודל משימוש
-GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 def analyze_document(file_bytes: bytes, file_ext: str) -> dict:
     """
     מקבלת קובץ (תמונה או PDF), ממירה אותו לפורמט הנדרש, 
     שולחת ל-Groq AI ומחזירה מילון (dict) עם הנתונים שחולצו.
     """
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if not groq_api_key:
+    if not GROQ_API_KEY:
         raise ValueError("Groq API Key is missing from environment variables.")
         
-    groq_client = Groq(api_key=groq_api_key)
+    groq_client = Groq(api_key=GROQ_API_KEY)
 
     # --- טיפול בקובץ (PDF או תמונה) ---
     if file_ext == 'pdf':

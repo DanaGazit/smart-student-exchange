@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from schemas import UserCreate, Token
-from services import auth_service
+from app.schemas import UserCreate, Token
+from app.services import auth_service
 
 # --- Authentication Endpoints ---
 # שכבת ה-HTTP בלבד: מקבלת בקשה, קוראת לסרוויס ומחזירה תשובה

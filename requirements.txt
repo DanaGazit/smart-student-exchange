@@ -1,12 +1,11 @@
-fastapi
-uvicorn
-python-multipart
-python-dotenv
-PyJWT
-PyMuPDF
-groq
-Pillow
-streamlit
-requests
-passlib
+# Backend dependencies (pinned to the versions tested in Docker)
+fastapi==0.162.1
+uvicorn==0.54.0
+python-multipart==0.0.33
+python-dotenv==1.2.4
+PyJWT==2.15.1
+PyMuPDF==2.1
+groq==1.7.0
+Pillow==13.0.0
+passlib==1.7.4
 bcrypt==4.0.1

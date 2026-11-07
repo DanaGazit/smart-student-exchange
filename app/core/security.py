@@ -1,17 +1,7 @@
-import os
 from datetime import datetime, timedelta, timezone
 import jwt
 from passlib.context import CryptContext
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SECRET_KEY = os.getenv("SECRET_KEY", "")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY is missing in .env file!")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-# משיכת זמן התפוגה של הטוקן (60 דקות כפי שהגדרת)
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
+from app.core import config
 
 # הגדרת אלגוריתם ההצפנה לסיסמאות
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -38,9 +28,9 @@ def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     
     # חישוב הזמן שבו הטוקן יפוג (עוד 60 דקות מעכשיו)
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     
     # יצירת החותמת הקריפטוגרפית בעזרת PyJWT
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
     return encoded_jwt

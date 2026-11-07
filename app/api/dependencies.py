@@ -1,7 +1,7 @@
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-import auth
+from app.core import config
 
 # שולף את הטוקן מהכותרת Authorization: Bearer <token>
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -13,7 +13,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     מחזירה את המייל של המשתמש המחובר (מנורמל), או זורקת 401.
     """
     try:
-        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
         raw_email = payload.get("sub")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")

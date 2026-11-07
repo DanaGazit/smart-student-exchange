@@ -2,14 +2,13 @@ import os
 import uuid
 import logging
 from fastapi import HTTPException
-from schemas import StudyMaterial, UpdateMaterial
-from repositories import materials_repository
-from services import ai_service
+from app.schemas import StudyMaterial, UpdateMaterial
+from app.core.config import UPLOAD_DIR
+from app.repositories import materials_repository
+from app.services import ai_service
 
 logger = logging.getLogger(__name__)
 
-# תיקיית הקבצים שהועלו (מוגשת החוצה דרך /downloads ב-main.py)
-UPLOAD_DIR = "uploads"
 
 
 def list_materials() -> list:

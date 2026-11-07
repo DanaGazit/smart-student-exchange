@@ -1,8 +1,8 @@
 import logging
 from fastapi import APIRouter, Depends, UploadFile, File
-from schemas import StudyMaterial, UpdateMaterial
-from dependencies import get_current_user
-from services import materials_service
+from app.schemas import StudyMaterial, UpdateMaterial
+from app.api.dependencies import get_current_user
+from app.services import materials_service
 
 logger = logging.getLogger(__name__)
 
