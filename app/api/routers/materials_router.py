@@ -26,9 +26,10 @@ def save_material(material: StudyMaterial, user_email: str = Depends(get_current
 
 
 @router.post("/analyze-material")
-async def analyze_material(file: UploadFile = File(...)):
+def analyze_material(file: UploadFile = File(...)):
+    # def ולא async def: הקריאה ל-AI חוסמת, ו-FastAPI מריץ def ב-thread pool, כך שהשרת ממשיך לענות לאחרים
     try:
-        file_bytes = await file.read()
+        file_bytes = file.file.read()
         ai_result = materials_service.save_and_analyze_file(file_bytes, file.filename)
         return {"message": "Analysis successful", "data": ai_result}
 
