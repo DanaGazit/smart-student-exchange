@@ -15,7 +15,6 @@ A full-stack platform for sharing physical and digital study materials between s
 * **Backend:** Python 3.11, FastAPI, SQLite, PyMuPDF, Pillow, Groq API
 * **Frontend:** Streamlit, Requests
 * **Infrastructure:** Docker, Docker Compose
-* All dependency versions are pinned in the `requirements*.txt` files.
 
 ## 🗂️ Project Structure
 
@@ -59,124 +58,60 @@ Created at runtime (not in git): `materials.db` (the SQLite database) and `uploa
 
 ## ✅ Prerequisites
 
-* **Git**
-* **Docker Desktop**, running (for the recommended way), **or** **Python 3.11** (to run without Docker)
-* A **Groq API key**: create one for free at [console.groq.com](https://console.groq.com) → API Keys
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+* A Groq API key from [console.groq.com](https://console.groq.com)
 
-## 🔧 Setup (once)
+## ▶️ Getting Started
 
-1. Clone the repository and enter the folder:
+1. Clone the repository:
    ```bash
    git clone https://github.com/DanaGazit/smart-student-exchange.git
    cd smart-student-exchange
    ```
 
-2. Create your `.env` file from the template:
+2. Create a `.env` file from the template, and set `GROQ_API_KEY` and `SECRET_KEY` (any long random string):
    ```bash
    cp .env.example .env
    ```
 
-3. Open `.env` and set:
-   * `GROQ_API_KEY`: your Groq API key
-   * `SECRET_KEY`: a long random string, used to sign login tokens. To generate one:
-     ```bash
-     python3 -c "import secrets; print(secrets.token_hex(32))"
-     ```
+3. Build and start the containers:
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d --build
+   ```
 
-   The server will not start without `SECRET_KEY`. All other settings have defaults (see the Configuration section below).
+4. Open the app:
+   * UI: http://localhost:8501
+   * API docs (Swagger): http://localhost:8000/docs
 
-## ▶️ Option A: Run with Docker (recommended)
-
-From the project root:
-
+To stop the app:
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build
-```
-
-* The **first build** downloads and installs all libraries, which can take several minutes on a slow connection. Later builds are fast, because Docker caches the installed libraries until a `requirements*.txt` file changes.
-* `-d` runs the containers in the background, so the terminal returns when they are up.
-
-Then open:
-
-| | URL |
-|---|---|
-| **App (UI)** | http://localhost:8501 |
-| **API docs (Swagger)** | http://localhost:8000/docs |
-
-Useful commands (all from the project root):
-
-```bash
-# Check that both containers are running (docker-backend-1, docker-frontend-1)
-docker compose -f docker/docker-compose.yml ps
-
-# Follow the backend logs
-docker compose -f docker/docker-compose.yml logs -f backend
-
-# Stop and remove the containers (your data in materials.db and uploads/ is kept)
 docker compose -f docker/docker-compose.yml down
 ```
 
-**Development mode:** the project folder is mounted into the containers and the backend runs with `--reload`, so code changes are picked up on save without rebuilding. Rebuild (`up -d --build`) only after changing a `requirements*.txt` file or a Dockerfile.
-
-## ▶️ Option B: Run without Docker
-
-Requires Python 3.11 (the version used in the Docker images and tested with the pinned dependencies). Check with `python3.11 --version`; on macOS you can install it with `brew install python@3.11`. You need **two terminals**, both in the project root.
-
-**Terminal 1: backend**
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt -r requirements-frontend.txt
-uvicorn app.main:app --reload
-```
-
-The backend runs at http://localhost:8000. It must be started from the project root, so it finds `.env`, `materials.db` and `uploads/`.
-
-**Terminal 2: frontend**
-
-```bash
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-BACKEND_API_URL=http://localhost:8000 streamlit run frontend/app.py
-```
-
-The UI opens at http://localhost:8501.
-
-`BACKEND_API_URL` is required here: by default the frontend looks for `http://backend:8000`, the backend's name inside Docker, which does not exist outside it. On Windows (PowerShell), set it first with `$env:BACKEND_API_URL="http://localhost:8000"`, then run `streamlit run frontend/app.py`.
+The project folder is mounted into the containers and the backend runs with `--reload`, so code changes apply without rebuilding. Rebuild only after changing a `requirements*.txt` file or a Dockerfile.
 
 ## 🧪 Running the Tests
 
-The integration tests send real HTTP requests to a running backend at `http://localhost:8000` (start it with Option A or B first).
+The integration tests run against the backend at `http://localhost:8000`, so start the app first:
 
 ```bash
 pip install -r requirements-dev.txt
 python tests/test_api.py
 ```
 
-They check registration and login, creating a material, that another user gets **403** when trying to edit or delete it, and that the owner can edit and delete it. The test material is deleted at the end; the two test users stay in `materials.db`.
-
 ## ⚙️ Configuration
 
-All settings are read in `app/core/config.py` from environment variables or the `.env` file:
+Settings are read from `.env` in `app/core/config.py`:
 
-| Variable | Required | Default | Purpose |
+| Variable | Required | Default | Description |
 |---|---|---|---|
-| `SECRET_KEY` | **Yes** | | Signs the JWT login tokens |
-| `GROQ_API_KEY` | For AI analysis | | Groq API key. Without it, uploading a file for analysis returns an error |
-| `GROQ_MODEL` | No | `qwen/qwen3.8-27b` | Groq vision model (must accept images) |
+| `SECRET_KEY` | Yes | | Signs the JWT login tokens |
+| `GROQ_API_KEY` | Yes | | Groq API key for AI analysis |
+| `GROQ_MODEL` | No | `qwen/qwen3.8-27b` | Groq vision model |
 | `ALGORITHM` | No | `HS256` | JWT signing algorithm |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `60` | How long a login stays valid |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `60` | Login token lifetime |
 | `DB_FILE` | No | `materials.db` | SQLite database file |
 | `UPLOAD_DIR` | No | `uploads` | Folder for uploaded files |
-| `BACKEND_API_URL` | No (frontend) | `http://backend:8000` | Where the frontend sends API requests. Set to `http://localhost:8000` when running without Docker |
-
-## 🩺 Troubleshooting
-
-* **`port is already allocated`** when starting Docker: another container or process is using port 8000 or 8501. List containers with `docker ps` and stop the old ones with `docker stop <name>`.
-* **`ValueError: SECRET_KEY is missing in .env file!`**: `.env` is missing or has no `SECRET_KEY`. See Setup above.
-* **The UI shows a connection error:** the backend is not running, or (without Docker) `BACKEND_API_URL` was not set to `http://localhost:8000`.
-* **AI analysis returns an error that the AI service is busy or unavailable:** check `GROQ_API_KEY`. An error with code `429` means the Groq rate limit was reached; wait a minute and try again, or check your limits in the Groq console.
-* **The first Docker build seems stuck:** it is most likely still downloading libraries. Check progress with `docker buildx history ls`.
 
 ## 👩‍💻 Author
 **Dana Gazit** B.Sc. Computer Science Student @ Ben-Gurion University
